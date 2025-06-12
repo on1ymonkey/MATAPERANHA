@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelyzinha Mata as Piranhas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1a202c; /* Dark background */
+        }
+        #gameContainer {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 960px; /* Max width for desktop */
+            margin: 0 auto;
+            border-radius: 1rem; /* Rounded corners */
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            background-color: #0d1222; /* Slightly lighter dark background for container */
+        }
+        #gameCanvas {
+            background-color: #10101d; /* Darker background for canvas */
+            display: block;
+            width: 100%;
+            aspect-ratio: 16 / 9; /* Maintain aspect ratio */
+            border-radius: 0.5rem;
+        }
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            pointer-events: none; /* Allow clicks to pass through to canvas for desktop */
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+        .health-bar-container {
+            width: 45%;
+            height: 2rem;
+            background-color: #555;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 2px solid #aaa;
+            pointer-events: auto; /* Re-enable pointer events for UI elements */
+        }
+        .health-bar {
+            height: 100%;
+            background-color: #4CAF50; /* Green health */
+            transition: width 0.2s ease-out;
+            border-radius: 0.3rem;
+        }
+        .health-percentage {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 2rem;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        #messageDisplay {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffe082; /* Light yellow for messages */
+            text-align: center;
+            pointer-events: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            margin-top: 1rem;
+        }
+        .game-button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 0.75rem;
+            background-color: #6d28d9; /* Purple */
+            color: white;
+            box-shadow: 0 4px #4c1d95; /* Darker purple shadow */
+            transition: all 0.1s ease-in-out;
+            pointer-events: auto;
+        }
+        .game-button:hover {
+            background-color: #7c3aed; /* Lighter purple on hover */
+            box-shadow: 0 2px #4c1d95;
+            transform: translateY(2px);
+        }
+        .game-button:active {
+            background-color: #5b21b6; /* Even darker on active */
+            box-shadow: none;
+            transform: translateY(4px);
+        }
+
+        #mobileControls {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            padding: 1rem;
+            pointer-events: auto;
+            position: absolute; /* Position relative to gameContainer */
+            bottom: 0; /* Align to bottom */
+            left: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0)); /* Gradient to fade out */
+            border-radius: 0 0 1rem 1rem; /* Rounded bottom corners */
+        }
+
+        .control-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+            justify-content: center;
+        }
+
+        .mobile-btn {
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 50%;
+            background-color: rgba(109, 40, 217, 0.8); /* Purple with transparency */
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid rgba(126, 68, 240, 0.9);
+            box-shadow: 0 3px rgba(76, 29, 149, 0.7);
+            transition: all 0.1s ease-in-out;
+            user-select: none; /* Prevent text selection on touch */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+
+        .mobile-btn:active {
+            background-color: rgba(87, 26, 178, 0.9);
+            box-shadow: 0 1px rgba(76, 29, 149, 0.7);
+            transform: translateY(2px);
+        }
+
+        /* Hide mobile controls on desktop */
+        @media (min-width: 768px) {
+            #mobileControls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4 md:p-8">
+    <div id="gameContainer" class="relative w-full max-w-4xl bg-gray-800 rounded-2xl shadow-xl flex flex-col items-center">
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- UI Overlay (Health bars, messages, buttons) -->
+        <div id="uiOverlay">
+            <!-- Health Bars -->
+            <div class="flex justify-between w-full p-2">
+                <!-- Player Health -->
+                <div class="health-bar-container relative">
+                    <div id="playerHealthBar" class="health-bar bg-green-500" style="width: 100%;"></div>
+                    <span id="playerHealthText" class="health-percentage">100%</span>
+                </div>
+                <!-- Opponent Health -->
+                <div class="health-bar-container relative">
+                    <div id="opponentHealthBar" class="health-bar bg-green-500" style="width: 100%;"></div>
+                    <span id="opponentHealthText" class="health-percentage">100%</span>
+                </div>
+            </div>
+
+            <!-- Messages and Game Over Screen -->
+            <div id="gameScreen" class="flex flex-col items-center justify-center p-4 rounded-xl space-y-4">
+                <div id="messageDisplay" class="hidden"></div>
+                <button id="startButton" class="game-button">Começar a Luta!</button>
+                <button id="nextRoundButton" class="game-button hidden">Próximo Round</button>
+                <button id="playAgainButton" class="game-button hidden">Jogar Novamente</button>
+            </div>
+            <!-- Empty div for spacing, pushed to bottom to give space for mobile controls -->
+            <div class="flex-grow"></div>
+        </div>
+
+        <!-- Mobile Controls (positioned at the bottom of the container) -->
+        <div id="mobileControls" class="flex justify-between w-full p-4 md:hidden">
+            <div class="control-group">
+                <button id="leftButton" class="mobile-btn">&#9664;</button> <!-- Left arrow -->
+                <button id="rightButton" class="mobile-btn">&#9654;</button> <!-- Right arrow -->
+                <button id="jumpButton" class="mobile-btn">&#9650;</button> <!-- Up arrow / Jump -->
+            </div>
+            <div class="control-group">
+                <button id="punchButton" class="mobile-btn">Soco</button>
+                <button id="kickButton" class="mobile-btn">Chute</button>
+                <button id="blockButton" class="mobile-btn">Bloq</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Use an IIFE to encapsulate game logic
+        (function() {
+            // --- Global Variables ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let CANVAS_WIDTH;
+            let CANVAS_HEIGHT;
+
+            // UI Elements
+            const playerHealthBar = document.getElementById('playerHealthBar');
+            const playerHealthText = document.getElementById('playerHealthText');
+            const opponentHealthBar = document.getElementById('opponentHealthBar');
+            const opponentHealthText = document.getElementById('opponentHealthText');
+            const messageDisplay = document.getElementById('messageDisplay');
+            const startButton = document.getElementById('startButton');
+            const nextRoundButton = document.getElementById('nextRoundButton');
+            const playAgainButton = document.getElementById('playAgainButton');
+
+            // Mobile Controls
+            const leftButton = document.getElementById('leftButton');
+            const rightButton = document.getElementById('rightButton');
+            const jumpButton = document.getElementById('jumpButton');
+            const punchButton = document.getElementById('punchButton');
+            const kickButton = document.getElementById('kickButton');
+            const blockButton = document.getElementById('blockButton');
+
+            let gameActive = false;
+            let currentRound = 1;
+            let playerRoundsWon = 0;
+            const MAX_ROUNDS = 3; // Changed to 3 for final boss
+
+            // Character instances
+            let player;
+            let opponent;
+            let game;
+            let audioManager;
+
+            // Background elements
+            let backgroundStars = [];
+            let clouds = [];
+
+            // --- Utility Functions ---
+
+            // Generate a random number within a range
+            function getRandom(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            // Simple AABB collision detection
+            function checkCollision(rect1, rect2) {
+                return rect1.x < rect2.x + rect2.width &&
+                       rect1.x + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
+            }
+
+            // --- Audio Manager Class ---
+            class AudioManager {
+                constructor() {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                // Play a simple tone
+                playTone(frequency, duration, type = 'sine', gain = 0.3) {
+                    if (!this.audioContext) return;
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+                    gainNode.gain.setValueAtTime(gain, this.audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+
+                    oscillator.start(this.audioContext.currentTime);
+                    oscillator.stop(this.audioContext.currentTime + duration);
+                }
+
+                // Specific sound effects
+                playJumpSound() { this.playTone(440, 0.1, 'triangle', 0.2); }
+                playPunchSound() { this.playTone(150, 0.05, 'square', 0.4); }
+                playKickSound() { this.playTone(100, 0.08, 'sawtooth', 0.4); }
+                playHitSound() { this.playTone(80, 0.07, 'square', 0.6); }
+                playBlockSound() { this.playTone(220, 0.05, 'sine', 0.3); }
+                playRoundWinSound() { this.playTone(880, 0.3, 'sine', 0.5); }
+                playRoundLossSound() { this.playTone(44, 0.3, 'square', 0.5); }
+                playGameWinSound() {
+                    this.playTone(1000, 0.2, 'sine', 0.6);
+                    setTimeout(() => this.playTone(1200, 0.2, 'sine', 0.6), 100);
+                    setTimeout(() => this.playTone(1400, 0.2, 'sine', 0.6), 200);
+                }
+                playGameLossSound() {
+                    this.playTone(150, 0.4, 'sawtooth', 0.6);
+                    setTimeout(() => this.playTone(100, 0.4, 'sawtooth', 0.6), 150);
+                }
+            }
+
+            // --- Star Class ---
+            class Star {
+                constructor(x, y, size) {
+                    this.x = x;
+                    this.y = y;
+                    this.size = size;
+                }
+
+                draw() {
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // --- Cloud Class ---
+            class Cloud {
+                constructor(x, y, width, height, speed) {
+                    this.x = x;
+                    this.y = y;
+                    this.width = width;
+                    this.height = height;
+                    this.speed = speed;
+                }
+
+                draw() {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; // Semi-transparent white
+                    ctx.beginPath();
+                    // More organic cloud shape using bezier curves
+                    ctx.moveTo(this.x, this.y + this.height * 0.5); // Start bottom left
+                    ctx.bezierCurveTo(
+                        this.x - this.width * 0.1, this.y - this.height * 0.2, // Control point 1
+                        this.x + this.width * 0.2, this.y - this.height * 0.7, // Control point 2
+                        this.x + this.width * 0.5, this.y - this.height * 0.5  // Mid top
+                    );
+                    ctx.bezierCurveTo(
+                        this.x + this.width * 0.8, this.y - this.height * 0.8,
+                        this.x + this.width * 1.1, this.y - this.height * 0.3,
+                        this.x + this.width, this.y + this.height * 0.5 // End bottom right
+                    );
+                    ctx.closePath(); // Close the path
+                    ctx.fill();
+
+                    // Adding some internal fluffy elements for more beauty
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width * 0.2, this.y + this.height * 0.3, this.height * 0.3, 0, Math.PI * 2);
+                    ctx.arc(this.x + this.width * 0.7, this.y + this.height * 0.2, this.height * 0.25, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                update() {
+                    this.x += this.speed;
+                    // Reset cloud position if it goes off screen
+                    if (this.x > CANVAS_WIDTH + this.width / 2) {
+                        this.x = -this.width / 2;
+                    }
+                }
+            }
+
+            // --- Character Class (Base for Player and Opponent) ---
+            class Character {
+                constructor(x, y, width, height, health, color, isPlayer = false) {
+                    this.x = x;
+                    this.y = y;
+                    this.width = width;
+                    this.height = height;
+                    this.health = health;
+                    this.maxHealth = health; // Max health is 10 points
+                    this.color = color; // Base color (for fallback if image not loaded)
+                    this.isPlayer = isPlayer;
+
+                    this.vx = 0; // Velocity X
+                    this.vy = 0; // Velocity Y
+                    this.isJumping = false;
+                    this.isOnGround = true;
+                    this.facingRight = true; // Direction character is facing
+
+                    this.isAttacking = false;
+                    this.attackCooldown = 0;
+                    this.maxAttackCooldown = 30; // Frames
+
+                    this.isBlocking = false;
+                    this.blockDuration = 0; // Frames
+                    this.maxBlockDuration = 60; // Frames
+
+                    this.flashEffect = 0; // For hit feedback
+                }
+
+                update(groundY) {
+                    // Apply gravity
+                    this.vy += 0.5; // Gravity strength
+                    this.y += this.vy;
+                    this.x += this.vx;
+
+                    // Prevent falling through ground
+                    if (this.y + this.height > groundY) {
+                        this.y = groundY - this.height;
+                        this.vy = 0;
+                        this.isJumping = false;
+                        this.isOnGround = true;
+                    } else {
+                        this.isOnGround = false;
+                    }
+
+                    // Prevent going off screen horizontally
+                    if (this.x < 0) this.x = 0;
+                    if (this.x + this.width > CANVAS_WIDTH) this.x = CANVAS_WIDTH - this.width;
+
+                    // Update cooldowns
+                    if (this.attackCooldown > 0) this.attackCooldown--;
+                    if (this.isBlocking) {
+                        this.blockDuration--;
+                        if (this.blockDuration <= 0) {
+                            this.isBlocking = false;
+                        }
+                    }
+
+                    // Reset flash effect
+                    if (this.flashEffect > 0) {
+                        this.flashEffect--;
+                    }
+                }
+
+                draw() {
+                    ctx.save();
+
+                    // Apply horizontal flip if facing left
+                    if (!this.facingRight) {
+                        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                        ctx.scale(-1, 1);
+                        ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
+                    }
+
+                    // Draw character (Kelyta image or opponent rectangle)
+                    if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
+                        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+                    } else {
+                        ctx.fillStyle = this.color;
+                        ctx.fillRect(this.x, this.y, this.width, this.height);
+                    }
+
+                    // Flash effect for hits/block (kept for visual feedback)
+                    if (this.flashEffect > 0) {
+                        ctx.fillStyle = `rgba(255, 255, 0, ${this.flashEffect / 10})`; // Yellow flash
+                        ctx.fillRect(this.x, this.y, this.width, this.height);
+                    }
+                    // Removed visual attack/block indicators for more immersion
+                    ctx.restore();
+                }
+
+                jump() {
+                    if (this.isOnGround) {
+                        this.vy = -12; // Jump strength
+                        this.isJumping = true;
+                        this.isOnGround = false;
+                        audioManager.playJumpSound();
+                    }
+                }
+
+                takeDamage(amount) {
+                    if (this.isBlocking) {
+                        amount *= 0.5; // Reduce damage by 50% when blocking (half a point)
+                        audioManager.playBlockSound();
+                    } else {
+                        audioManager.playHitSound();
+                    }
+                    this.health -= amount;
+                    if (this.health < 0) this.health = 0;
+                    this.flashEffect = 10; // Flash for 10 frames
+                }
+
+                attack(type) {
+                    if (this.attackCooldown > 0) return 0; // Cannot attack if on cooldown, return 0 damage
+
+                    this.isAttacking = true;
+                    this.attackCooldown = this.maxAttackCooldown;
+
+                    let damage = 1.0; // Default damage for player is 1.0 points
+                    audioManager.playPunchSound(); // Play sound for any attack (can be refined)
+
+                    // Simulate attack animation duration
+                    setTimeout(() => {
+                        this.isAttacking = false;
+                    }, 200); // 200ms attack animation
+
+                    return damage;
+                }
+
+                block() {
+                    if (this.isBlocking) return;
+                    this.isBlocking = true;
+                    this.blockDuration = this.maxBlockDuration;
+                    this.flashEffect = 10; // Flash for 10 frames
+                }
+            }
+
+            // --- Player Class ---
+            class Player extends Character {
+                constructor(x, y, width, height, health, imageUrl) {
+                    super(x, y, width, height, health, 'transparent', true);
+                    this.image = new Image();
+                    this.image.src = imageUrl;
+                    this.image.onerror = () => console.error("Failed to load Kelyta's image.");
+                }
+            }
+
+            // --- Opponent Class ---
+            class Opponent extends Character {
+                constructor(x, y, width, height, health, imageUrl) {
+                    super(x, y, width, height, health, 'transparent', false);
+                    this.image = new Image();
+                    this.image.src = imageUrl;
+                    this.image.onerror = () => console.error("Failed to load Opponent's image.");
+                    this.actionTimer = 0;
+                    this.actionCooldown = 60; // Frames before next AI decision
+
+                    this.basePunchDamage = 1.5; // Base damage for opponent's punch (reduced)
+                    this.baseKickDamage = 2.0;  // Base damage for opponent's kick (reduced)
+
+                    this.currentPunchDamage = this.basePunchDamage;
+                    this.currentKickDamage = this.baseKickDamage;
+                }
+
+                draw() {
+                    ctx.save();
+                    // Apply horizontal flip if facing left
+                    if (!this.facingRight) {
+                        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                        ctx.scale(-1, 1);
+                        ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
+                    }
+
+                    // Draw character image or fallback to purple rectangle
+                    if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
+                        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+                    } else {
+                        // Fallback to purple rectangle if image fails to load
+                        ctx.fillStyle = 'purple';
+                        ctx.fillRect(this.x, this.y, this.width, this.height);
+                    }
+
+                    // Flash effect for hits/block (kept for visual feedback)
+                    if (this.flashEffect > 0) {
+                        ctx.fillStyle = `rgba(255, 255, 0, ${this.flashEffect / 10})`; // Yellow flash
+                        ctx.fillRect(this.x, this.y, this.width, this.height);
+                    }
+                    ctx.restore();
+                }
+
+                // AI logic
+                decideAction(player) {
+                    if (this.actionTimer > 0) {
+                        this.actionTimer--;
+                        return;
+                    }
+
+                    // Always face the player
+                    this.facingRight = (this.x < player.x);
+
+                    const distanceToPlayer = Math.abs(this.x - player.x);
+                    const attackRange = 100; // Distance to trigger attack/block
+
+                    if (distanceToPlayer < attackRange) {
+                        // Close enough to attack/block
+                        const randomAction = Math.random();
+                        if (randomAction < 0.4) { // 40% chance to punch
+                            this.isAttacking = true; // Set attacking state
+                            this.attackCooldown = this.maxAttackCooldown; // Set cooldown
+                            audioManager.playPunchSound();
+                            // Apply opponent's dynamic punch damage
+                            game.checkAttackCollision(this, player, this.currentPunchDamage);
+                            setTimeout(() => { this.isAttacking = false; }, 200); // End attack visual
+                        } else if (randomAction < 0.7) { // 30% chance to kick
+                            this.isAttacking = true;
+                            this.attackCooldown = this.maxAttackCooldown;
+                            audioManager.playKickSound();
+                            // Apply opponent's dynamic kick damage
+                            game.checkAttackCollision(this, player, this.currentKickDamage);
+                            setTimeout(() => { this.isAttacking = false; }, 200);
+                        } else { // 30% chance to block
+                            this.block();
+                        }
+                        this.vx = 0; // Stop moving when close for action
+                    } else {
+                        // Move towards player
+                        this.vx = (this.x < player.x) ? 3 : -3;
+                    }
+                    this.actionTimer = this.actionCooldown; // Reset AI decision timer
+                }
+            }
+
+            // --- Piranhona Class (Boss) ---
+            class Piranhona extends Opponent { // Renamed from Boss to Piranhona
+                constructor(x, y, width, height, health, imageUrl) {
+                    super(x, y, width, height, health, imageUrl);
+                    // Piranhona-specific higher stats
+                    this.maxHealth = 20; // Piranhona has higher base health
+                    this.health = this.maxHealth;
+                    this.basePunchDamage = 2.5; // Piranhona base punch damage
+                    this.baseKickDamage = 3.5;  // Piranhona base kick damage
+                    this.currentPunchDamage = this.basePunchDamage;
+                    this.currentKickDamage = this.baseKickDamage;
+                    // Piranhona can also have unique behaviors or faster cooldowns
+                    this.actionCooldown = 45; // Piranhona reacts faster
+                }
+                // Piranhona might have slightly different AI or attack patterns,
+                // but for now, it uses the same decideAction as Opponent.
+                // It just has higher base stats and no further scaling per round.
+            }
+
+            // --- Game Class ---
+            class Game {
+                constructor() {
+                    this.player = null;
+                    this.opponent = null; // This will now be the generic 'opponent' which can be Piranha or Piranhona
+                    this.keys = {}; // For desktop keyboard input
+                    this.mobileControls = {
+                        left: false, right: false, jump: false, punch: false, kick: false, block: false
+                    };
+                    this.groundY = CANVAS_HEIGHT - 50; // Ground position
+
+                    this.initEventListeners();
+                    this.resetRound();
+                }
+
+                initEventListeners() {
+                    // Keyboard controls
+                    document.addEventListener('keydown', (e) => {
+                        this.keys[e.key] = true;
+                    });
+                    document.addEventListener('keyup', (e) => {
+                        this.keys[e.key] = false;
+                        // Stop attack/block actions on key up for responsiveness
+                        if (e.key === 'J' || e.key === 'j' || e.key === 'K' || e.key === 'k') {
+                            player.isAttacking = false;
+                        }
+                        if (e.key === 'L' || e.key === 'l') {
+                            player.isBlocking = false;
+                            player.blockDuration = 0;
+                        }
+                    });
+
+                    // Mobile control buttons
+                    const addTouchListeners = (button, action) => {
+                        button.addEventListener('touchstart', (e) => {
+                            e.preventDefault(); // Prevent default touch behavior like scrolling
+                            this.mobileControls[action] = true;
+                        }, { passive: false });
+                        button.addEventListener('touchend', (e) => {
+                            e.preventDefault();
+                            this.mobileControls[action] = false;
+                            // Stop attack/block actions on touch end
+                            if (action === 'punch' || action === 'kick') {
+                                player.isAttacking = false;
+                            }
+                            if (action === 'block') {
+                                player.isBlocking = false;
+                                player.blockDuration = 0;
+                            }
+                        }, { passive: false });
+                    };
+
+                    addTouchListeners(leftButton, 'left');
+                    addTouchListeners(rightButton, 'right');
+                    addTouchListeners(jumpButton, 'jump');
+                    addTouchListeners(punchButton, 'punch');
+                    addTouchListeners(kickButton, 'kick');
+                    addTouchListeners(blockButton, 'block');
+
+                    // Start/Next Round/Play Again buttons
+                    startButton.addEventListener('click', () => {
+                        if (!gameActive) {
+                            currentRound = 1;
+                            playerRoundsWon = 0;
+                            this.startGame();
+                        }
+                    });
+                    nextRoundButton.addEventListener('click', () => {
+                        if (!gameActive) {
+                            this.startNextRound();
+                        }
+                    });
+                    playAgainButton.addEventListener('click', () => {
+                        if (!gameActive) {
+                            currentRound = 1;
+                            playerRoundsWon = 0;
+                            this.startGame();
+                        }
+                    }
+                    );
+
+                    // Handle window resize
+                    window.addEventListener('resize', this.resizeCanvas.bind(this));
+                    this.resizeCanvas(); // Initial resize
+                }
+
+                resizeCanvas() {
+                    // Get container width
+                    const gameContainer = document.getElementById('gameContainer');
+                    const containerWidth = gameContainer.offsetWidth;
+
+                    // Set canvas width based on container, maintaining aspect ratio
+                    CANVAS_WIDTH = containerWidth;
+                    CANVAS_HEIGHT = CANVAS_WIDTH * (9 / 16); // 16:9 aspect ratio
+
+                    canvas.width = CANVAS_WIDTH;
+                    canvas.height = CANVAS_HEIGHT;
+
+                    this.groundY = CANVAS_HEIGHT - CANVAS_HEIGHT * 0.1; // Ground is 10% from bottom
+
+                    // Reinitialize background elements on resize
+                    this.initBackgroundElements();
+
+                    // Adjust character positions if game is active
+                    if (player && opponent) {
+                        player.y = this.groundY - player.height;
+                        opponent.y = this.groundY - opponent.height;
+                    }
+                }
+
+                initBackgroundElements() {
+                    // Initialize stars
+                    backgroundStars = [];
+                    const numStars = Math.floor((CANVAS_WIDTH * CANVAS_HEIGHT) / 3000); // More stars for larger canvas
+                    for (let i = 0; i < numStars; i++) {
+                        backgroundStars.push(new Star(
+                            getRandom(0, CANVAS_WIDTH),
+                            getRandom(0, CANVAS_HEIGHT * 0.7), // Stars mostly in top 70%
+                            getRandom(1, 3)
+                        ));
+                    }
+
+                    // Initialize clouds
+                    clouds = [];
+                    const numClouds = Math.floor(CANVAS_WIDTH / 150); // More clouds for larger canvas
+                    for (let i = 0; i < numClouds; i++) {
+                        clouds.push(new Cloud(
+                            getRandom(0, CANVAS_WIDTH),
+                            getRandom(50, CANVAS_HEIGHT * 0.4),
+                            getRandom(100, 200),
+                            getRandom(40, 70),
+                            getRandom(0.5, 1.5) // Slower movement
+                        ));
+                    }
+                }
+
+                startGame() {
+                    messageDisplay.classList.add('hidden');
+                    startButton.classList.add('hidden');
+                    nextRoundButton.classList.add('hidden');
+                    playAgainButton.classList.add('hidden');
+                    this.resetRound();
+                    gameActive = true;
+                    this.updateUI();
+                }
+
+                startNextRound() {
+                    currentRound++;
+                    messageDisplay.classList.add('hidden');
+                    nextRoundButton.classList.add('hidden');
+                    this.resetRound(); // Reset characters and apply new stats
+                    gameActive = true;
+                    this.updateUI();
+                }
+
+                resetRound() {
+                    // Player always has same stats
+                    player = new Player(
+                        CANVAS_WIDTH * 0.2,
+                        this.groundY - 100,
+                        60,
+                        100,
+                        10, // Kelyta's health
+                        'https://i.postimg.cc/kBztzty2/kelyta-personagem.png'
+                    );
+                    player.image.onload = () => {
+                        if (!gameActive) this.draw();
+                    };
+
+                    if (currentRound === MAX_ROUNDS) { // This is the Piranhona round
+                        opponent = new Piranhona( // Changed to Piranhona
+                            CANVAS_WIDTH * 0.7,
+                            this.groundY - 100,
+                            100, // Piranhona might be larger
+                            150, // Piranhona might be taller
+                            20, // Piranhona has more base health (20 points)
+                            'https://i.postimg.cc/RV72PHXM/assets-task-01jxjsev69em7t5f5setc1y0p0-1749756204-img-0-removebg-preview.png' // Piranhona image
+                        );
+                        // Piranhona's punch and kick damage are set in its constructor
+                    } else { // Regular Piranha rounds
+                        // Calculate opponent's scaled health and damage for the current round
+                        const scaledOpponentMaxHealth = 10 + (currentRound - 1) * 1; // +1 health per round
+                        const scaledOpponentPunchDamage = 1.5 + (currentRound - 1) * 0.25; // +0.25 damage per round
+                        const scaledOpponentKickDamage = 2.0 + (currentRound - 1) * 0.25; // Keeping kick damage same as punch for now
+
+                        opponent = new Opponent(
+                            CANVAS_WIDTH * 0.7,
+                            this.groundY - 100,
+                            50,
+                            90,
+                            scaledOpponentMaxHealth, // Scaled health for opponent
+                            'https://i.postimg.cc/br4ZB5TB/assets-task-01jxjqxa1zfw191pz9w34pxbk9-1749754631-img-1-removebg-preview.png' // Regular Piranha image
+                        );
+                        // Set opponent's current damage values based on scaling
+                        opponent.currentPunchDamage = scaledOpponentPunchDamage;
+                        opponent.currentKickDamage = scaledOpponentKickDamage;
+                    }
+
+                    player.y = this.groundY - player.height; // Place on ground
+                    opponent.y = this.groundY - opponent.height; // Place on ground
+
+                    this.updateUI();
+                }
+
+                update() {
+                    if (!gameActive) return;
+
+                    // Update characters
+                    player.update(this.groundY);
+                    opponent.update(this.groundY);
+
+                    // Handle player movement
+                    player.vx = 0; // Reset horizontal velocity
+                    if (this.keys['A'] || this.keys['a'] || this.mobileControls.left) {
+                        player.vx = -5;
+                        player.facingRight = false;
+                    } else if (this.keys['D'] || this.keys['d'] || this.mobileControls.right) {
+                        player.vx = 5;
+                        player.facingRight = true;
+                    }
+
+                    if ((this.keys[' '] && player.isOnGround) || (this.mobileControls.jump && player.isOnGround)) {
+                        player.jump();
+                    }
+
+                    // Handle player attacks
+                    if ((this.keys['J'] || this.keys['j'] || this.mobileControls.punch) && !player.isAttacking) {
+                        const damage = player.attack('punch'); // Returns 1.0
+                        if (damage > 0) { // Check if attack wasn't on cooldown
+                            this.checkAttackCollision(player, opponent, damage);
+                        }
+                    } else if ((this.keys['K'] || this.keys['k'] || this.mobileControls.kick) && !player.isAttacking) {
+                        const damage = player.attack('kick'); // Returns 1.0
+                        if (damage > 0) { // Check if attack wasn't on cooldown
+                            this.checkAttackCollision(player, opponent, damage);
+                        }
+                    }
+
+                    // Handle player defense
+                    if ((this.keys['L'] || this.keys['l'] || this.mobileControls.block) && !player.isBlocking) {
+                        player.block();
+                    }
+
+                    // Opponent AI update (includes direct damage application on attack decision)
+                    opponent.decideAction(player);
+
+                    // Check if a character has lost all health
+                    if (player.health <= 0 || opponent.health <= 0) {
+                        gameActive = false;
+                        this.endRound();
+                    }
+
+                    this.updateUI();
+                }
+
+                checkAttackCollision(attacker, target, baseDamage) {
+                    // Define attack hitbox relative to attacker
+                    let attackRect;
+                    const attackWidth = attacker.width * 0.6;
+                    const attackHeight = attacker.height * 0.2;
+                    const attackOffset = attacker.facingRight ? attacker.width * 0.7 : -attacker.width * 0.3; // Offset for hitbox
+
+                    if (attacker.isAttacking) { // Only check collision if attacker is actively attacking
+                        attackRect = {
+                            x: attacker.x + attackOffset,
+                            y: attacker.y + attacker.height * 0.4, // Mid-body height
+                            width: attackWidth,
+                            height: attackHeight
+                        };
+
+                        const targetRect = {
+                            x: target.x,
+                            y: target.y,
+                            width: target.width,
+                            height: target.height
+                        };
+
+                        if (checkCollision(attackRect, targetRect)) {
+                            let damageToApply = baseDamage;
+                            // Check for jump attack bonus if the attacker is the player and jumping
+                            if (attacker.isPlayer && attacker.isJumping) {
+                                damageToApply = 1.5; // Player's jump attack damage (1.0 * 1.5)
+                            }
+
+                            // Apply resistance if the attacker is the player and the target is the opponent/Piranhona
+                            if (attacker.isPlayer && target === opponent && currentRound > 1) {
+                                if (target instanceof Piranhona) { // Piranhona is the boss
+                                    // Piranhona has fixed high stats and no additional scaling resistance,
+                                    // so baseDamage is already final for her from the player.
+                                } else { // Regular Piranha
+                                    const resistanceFactor = 1 - (currentRound - 1) * 0.02; // 2% resistance per round
+                                    damageToApply *= Math.max(0, resistanceFactor); // Ensure damage doesn't go negative
+                                }
+                            }
+
+                            target.takeDamage(damageToApply); // Pass the final calculated damage
+                            // Ensure attack only registers once per attack animation
+                            attacker.isAttacking = false;
+                            // Reset cooldown early if hit registered to allow for more rapid follow-ups
+                            attacker.attackCooldown = 0;
+                        }
+                    }
+                }
+
+                endRound() {
+                    if (player.health <= 0) {
+                        let lossMessage;
+                        if (currentRound === MAX_ROUNDS) {
+                            lossMessage = `A Piranhona roubou seu namorado! Kelyzinha, não desista!`;
+                            audioManager.playGameLossSound(); // Play final loss sound
+                        } else {
+                            lossMessage = `A Piranha roubou seu namorado no Round ${currentRound}! Lute novamente, Kelyzinha!`;
+                            audioManager.playRoundLossSound();
+                        }
+                        messageDisplay.textContent = lossMessage;
+                        playAgainButton.classList.remove('hidden'); // Kelyta lost, game over
+                    } else if (opponent.health <= 0) {
+                        playerRoundsWon++;
+                        let winMessage;
+                        if (currentRound === MAX_ROUNDS) {
+                            winMessage = "PARABÉNS, AMOOOOR! VOCÊ SALVOU SEU NAMORADO E DERROTOU TODAS AS PIRANHAS! O AMOR VENCEU!";
+                            audioManager.playGameWinSound();
+                        } else {
+                            winMessage = `Você afastou a Piranha no Round ${currentRound}!`;
+                            audioManager.playRoundWinSound();
+                        }
+                        messageDisplay.textContent = winMessage;
+
+                        if (playerRoundsWon === MAX_ROUNDS) {
+                            playAgainButton.classList.remove('hidden'); // Kelyta won all rounds, game over
+                        } else {
+                            nextRoundButton.classList.remove('hidden'); // Advance to next round
+                        }
+                    }
+                    messageDisplay.classList.remove('hidden');
+                }
+
+                updateUI() {
+                    playerHealthBar.style.width = `${(player.health / player.maxHealth) * 100}%`;
+                    playerHealthText.textContent = `${Math.floor((player.health / player.maxHealth) * 100)}%`;
+                    // Change color of health bar based on health
+                    if (player.health < player.maxHealth * 0.3) playerHealthBar.style.backgroundColor = '#EF4444'; // Red
+                    else if (player.health < player.maxHealth * 0.6) playerHealthBar.style.backgroundColor = '#FCD34D'; // Yellow
+                    else playerHealthBar.style.backgroundColor = '#4CAF50'; // Green
+
+                    opponentHealthBar.style.width = `${(opponent.health / opponent.maxHealth) * 100}%`;
+                    opponentHealthText.textContent = `${Math.floor((opponent.health / opponent.maxHealth) * 100)}%`;
+                    if (opponent.health < opponent.maxHealth * 0.3) opponentHealthBar.style.backgroundColor = '#EF4444'; // Red
+                    else if (opponent.health < opponent.maxHealth * 0.6) opponentHealthBar.style.backgroundColor = '#FCD34D'; // Yellow
+                    else opponentHealthBar.style.backgroundColor = '#4CAF50'; // Green
+                }
+
+                draw() {
+                    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Clear canvas
+
+                    // Draw background: Night Sky
+                    ctx.fillStyle = '#0a0a20'; // Dark blue-purple for sky
+                    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+                    // Draw static stars
+                    backgroundStars.forEach(star => star.draw());
+
+                    // Draw moving clouds
+                    clouds.forEach(cloud => {
+                        cloud.update(); // Update cloud position
+                        cloud.draw();
+                    });
+
+                    // Draw ground
+                    ctx.fillStyle = '#222'; // Dark grey
+                    ctx.fillRect(0, this.groundY, CANVAS_WIDTH, CANVAS_HEIGHT - this.groundY);
+
+                    // Draw characters
+                    player.draw();
+                    opponent.draw();
+                }
+            }
+
+            // --- Game Loop ---
+            function animate() {
+                game.update();
+                game.draw();
+                requestAnimationFrame(animate);
+            }
+
+            // --- Initialization on Window Load ---
+            window.onload = function() {
+                audioManager = new AudioManager();
+                game = new Game();
+                game.resizeCanvas(); // Set initial canvas size and background elements
+                game.resetRound(); // Initialize characters
+                game.draw(); // Draw initial state
+
+                // Display initial message
+                messageDisplay.textContent = "Kelyzinha Mata as Piranhas";
+                messageDisplay.classList.remove('hidden');
+
+                // Start the animation loop
+                animate();
+            };
+        })();
+    </script>
+</body>
+</html>
